@@ -31,7 +31,7 @@ class Printer:
         self.normalizeData()
         # generate support structures
         self.generateInnerSupport()
-        self.generateOuterSupport(1)
+        self.generateOuterSupport(3)
 
     # reading and modifiying data
     def read(self, filePath):
@@ -102,10 +102,9 @@ class Printer:
     def generateOuterSupport(self, density):
         maxPoint = self.getMaxPoint()
         samplePoints = self.generateSamplePoints(maxPoint, density)
-        self.appendSamplePoints(samplePoints)
+        self.appendSamplePoints(samplePoints, density)
 
     def generateSamplePoints(self, maxPoint, density):
-        maxPoint = [5, 5]
         samplePoints = []
         xValue = 0
         while xValue <= maxPoint[0]:
@@ -115,6 +114,12 @@ class Printer:
                 yValue += density * 3
             xValue += (3 * density)**0.5
         return samplePoints
+
+    def appendSamplePoints(self, samplePoints, density):
+        for point in samplePoints:
+            hexPoints = self.getHexPoints(point[0], point[1], density)
+            hexPoints = self.trimSampleInsert(hexPoints)
+            self.samplePoints.extend(hexPoints)
 
     def getHexPoints(self, x, y, c):
         hexPoints= [[ 0.0 + x,  (c) + y, 0],
@@ -134,11 +139,6 @@ class Printer:
                 index += 1
         return listPoints
 
-    def appendSamplePoints(self, samplePoints):
-        for point in samplePoints:
-            hexPoints = self.getHexPoints(point[0], point[1], 1)
-            hexPoints = self.trimSampleInsert(hexPoints)
-            self.samplePoints.extend(hexPoints)
 
 # only for development
 class Plot:
@@ -173,7 +173,7 @@ def main():
     plot    = Plot()
     printer = Printer(1000, 1000, 1000)
 
-    printer.print('./objects/elvis.obj')
+    printer.print('./objects/cube.obj')
 
     plot.plotVertices(printer.samplePoints, subplot=1)
     plot.plotSurface(printer.vertices, printer.faces, subplot=0)  
