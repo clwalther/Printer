@@ -20,7 +20,7 @@ class Test:
             if printer.samplePoints.count(element) > 1:
                 return 1
         return 0
-
+    
 def main():
     test = Test()
 

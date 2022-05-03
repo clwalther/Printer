@@ -1,6 +1,11 @@
 class Default:
     def __init__(self):
-        self.defaultObjectFile = '../objects/cube.obj'
+        # printer specific
         self.defaultXSize = 100
         self.defaultYSize = 100
         self.defaultZSize = 100
+
+        # file specific
+        self.defaultObjectFile = '../objects/cube.obj'
+        self.innerDenstiy = 3
+        self.outerDensity = 3
