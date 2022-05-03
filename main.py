@@ -32,16 +32,13 @@ class Printer:
         self.filePath     = filePath
         self.innerDenstiy = innerDenstiy
         self.outerDensity = outerDensity
-        # utils
-        self.minPoint = self.getMinPoint()
         # reading and modifying data
         self.readData()
         self.trimData()
         self.formatFacesValue()
+        self.minPoint = self.getMinPoint() # utils
         self.normalizeData()
-        # utils
-        self.minPoint = self.getMinPoint()
-        self.maxPoint = self.getMaxPoint()
+        self.maxPoint = self.getMaxPoint() # utils
         # generate support structures
         self.generateInnerSupport()
         self.generateOuterSupport()
@@ -87,13 +84,14 @@ class Printer:
 
     def formatData(self, lineAsArray):
         lineKey    = lineAsArray[0]
-        lineValues = self.tempAppendData(lineAsArray[1:])
 
         if lineKey == 'v':
-            self.vertices.append(tempArray)
+            lineValues = self.tempAppendData(lineAsArray[1:])
+            self.vertices.append(lineValues)
 
         elif lineKey == 'f':
-            self.faces.append(tempArray)
+            lineValues = self.tempAppendData(lineAsArray[1:])
+            self.faces.append(lineValues)
 
     def tempAppendData(self, array):
         returnArray = []
@@ -119,10 +117,10 @@ class Printer:
 
     # outer
     def generateOuterSupport(self):
-        rootPoints = self.generateSamplePoints()
+        rootPoints = self.generateOuterRootPoints()
 
     def generateOuterRootPoints(self):
-        pass
+        return None
 
 
 def main():
@@ -131,7 +129,7 @@ def main():
 
     printer.print('./objects/cube.obj', innerDenstiy=3, outerDensity=3)
 
-    plot.plotVertices(printer.samplePoints, subplot=1)
+    plot.plotVertices(printer.outerSamplePoints, subplot=1)
     plot.plotSurface(printer.vertices, printer.faces, subplot=0)  
     plot.plotMesh(printer.vertices, printer.faces, subplot=1)  
     plot.show()
