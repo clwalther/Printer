@@ -80,6 +80,18 @@ class Test:
             return 1 # ERROR
         return 0
 
+    @test
+    def testPlaneLine(self):
+        # get
+        printer = Printer(self.default.defaultXSize, self.default.defaultYSize, self.default.defaultZSize)
+        # when
+        LINE = [[15.196152422706632, 16.0, 0], [15.196152422706632, 16.0, 1]]
+        POLYGON = [[15.303, 15.303, 0.0], [14.228, 17.323999999999998, 0.19], [15.98, 15.98, 0.19]]
+        result  = printer.getPointLineIntersectPlane(LINE, POLYGON)
+        
+        # then
+        return 0
+
 def main():
     test = Test()
 

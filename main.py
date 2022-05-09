@@ -113,7 +113,7 @@ class Printer:
         return a, b, c, d
 
     def calcIntersectionPlaneLine(self, LINE, A, B, C, D):
-        SUM = (-D) - (A * LINE[0][0]) + (B * LINE[0][1]) + (C * LINE[0][2])
+        SUM = (D * (-1)) - ((A * LINE[0][0]) + (B * LINE[0][1]) + (C * LINE[0][2]))
         MUL = (A * (LINE[1][0] - LINE[0][0])) + (B * (LINE[1][1] - LINE[0][1])) + (C * (LINE[1][2] - LINE[0][2]))
         if not MUL == 0:
             X = LINE[0][0] + (LINE[1][0] - LINE[0][0]) * SUM / MUL
@@ -230,12 +230,17 @@ class Printer:
 
     def generateOuterSupportPillars(self):
         for keys in self.outerSamplePoints.keys():
-            LIST = sorted(self.outerSamplePoints[keys])
-            for index in range(1, len(LIST)-2, 2):
+            LIST = self.getSortedSamplePoints(keys)
+            for index in range(0, len(LIST)-1, 2):
                 lowerPoint = self.strToList(keys + f";{LIST[index+0]}", float)
                 upperPoint = self.strToList(keys + f";{LIST[index+1]}", float)
                 self.generateSupportPillar(lowerPoint, upperPoint)
     
+    def getSortedSamplePoints(self, key):
+        LIST = sorted(self.outerSamplePoints[key])
+        LIST.insert(0, 0.0)
+        return LIST
+
     def generateSupportPillar(self, lowerPoint, upperPoint):
         pillarRadius = self.getPillarRadius(lowerPoint, upperPoint)
         upperRingZ   = upperPoint[2] - self.getPillarRingZ(lowerPoint, upperPoint)
@@ -282,9 +287,9 @@ def main():
     plot    = Plot()
     printer = Printer(1000, 1000, 1000)
 
-    printer.print('./objects/doublehalfcircle.obj', innerDenstiy=3, outerDensity=3)
+    printer.print('./objects/elvis.obj', innerDenstiy=3, outerDensity=2)
 
-    plot.plotMesh(printer.vertices, printer.faces)
+    plot.plotSurface(printer.vertices, printer.faces)
     plot.plotSurface(printer.generatedVertices, printer.generatedFaces, subplot=0)
     plot.plotSurface(printer.generatedVertices, printer.generatedFaces, subplot=1)
     plot.show()
