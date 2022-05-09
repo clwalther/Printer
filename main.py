@@ -13,6 +13,9 @@ class Printer:
         self.innerDenstiy = 3
         self.outerDensity = 3
 
+        self.pillarCompHeight = 0.6
+        self.pillarRadius = 0.4
+
         # read
         self.fileLines = []
         self.faces     = []
@@ -63,13 +66,13 @@ class Printer:
         return maxPoint
 
     # CONSTRUCT AND GENERATE
-    def getHexPoints(self, X, Y, C):
-        hexPoints= [[ 0.0 + X,  (C) + Y, 0],
-                    [ 0.0 + X, -(C) + Y, 0],
-                    [ (3)**0.5 * (C) / 2 + X,  (C) / 2 + Y, 0],
-                    [ (3)**0.5 * (C) / 2 + X, -(C) / 2 + Y, 0],
-                    [-(3)**0.5 * (C) / 2 + X,  (C) / 2 + Y, 0],
-                    [-(3)**0.5 * (C) / 2 + X, -(C) / 2 + Y, 0]]
+    def getHexPoints(self, X, Y, Z, C):
+        hexPoints= [[ 0.0 + X,  (C) + Y, Z],
+                    [ (3)**0.5 * (C) / 2 + X,  (C) / 2 + Y, Z],
+                    [ (3)**0.5 * (C) / 2 + X, -(C) / 2 + Y, Z],
+                    [ 0.0 + X, -(C) + Y, Z],
+                    [-(3)**0.5 * (C) / 2 + X, -(C) / 2 + Y, Z],
+                    [-(3)**0.5 * (C) / 2 + X,  (C) / 2 + Y, Z]]
         return hexPoints
 
     def constructPolygon(self, face, vertices):
@@ -131,6 +134,12 @@ class Printer:
     def strToList(self, string, obj):
         array = list(map(obj, string.split(';')))
         return array
+    
+    def getLineFromRoot(self, root, X, Y, Z):
+        vector = [root[0] + X, root[1] + Y, root[2] + Z]
+        line   = [root, vector]
+        return line
+    
     # reading and modifiying data
     def readData(self):
         with open(self.filePath, 'r') as context:
@@ -179,6 +188,7 @@ class Printer:
     def generateOuterSupport(self):
         rootPoints = self.generateOuterRootPoints()
         self.setOuterSamplePoints(rootPoints)
+        self.generateOuterSupportPillars()
 
     def generateOuterRootPoints(self):
         rootPoints = []
@@ -196,7 +206,7 @@ class Printer:
 
     def setOuterSamplePoints(self, rootPoints):
         for root in rootPoints:
-            samplePoints = self.getHexPoints(root[0], root[1], self.outerDensity)
+            samplePoints = self.getHexPoints(root[0], root[1], 0, self.outerDensity)
             self.checkOuterSamplePoints(samplePoints)
 
     def checkOuterSamplePoints(self, samplePoints):
@@ -204,30 +214,80 @@ class Printer:
             strPoint = self.listToStr(point[0:2])
             if not strPoint in self.outerSamplePoints.keys():
                 result = self.getRayIntersectOuterSamplePoints(point)
-                if self.validIntersections(result):
+                if len(result) > 0:
                     self.outerSamplePoints[strPoint] = result
 
     def getRayIntersectOuterSamplePoints(self, point):
-        intersectionHeights = []
+        heights = []
         for face in self.faces:
-            polygon = self.constructPolygon(face, self.vertices)
+            polygon   = self.constructPolygon(face, self.vertices)
             isBeneath = self.pointInPolygon(polygon, point)
             if isBeneath:
-                _point = (point[0], point[1], point[2] + 1)
-                intersection = self.getPointLineIntersectPlane((point, _point), polygon)
-                intersectionHeights.append(intersection[2])
-        return intersectionHeights
+                line  = self.getLineFromRoot(point, X=0, Y=0, Z=1)
+                inter = self.getPointLineIntersectPlane(line, polygon)
+                heights.append(inter[2])
+        return heights
 
-    def validIntersections(self, intersections):
-        if len(intersections) == 0:
-            return False
-        return True
+    def generateOuterSupportPillars(self):
+        for keys in self.outerSamplePoints.keys():
+            LIST = sorted(self.outerSamplePoints[keys])
+            for index in range(1, len(LIST)-2, 2):
+                lowerPoint = self.strToList(keys + f";{LIST[index+0]}", float)
+                upperPoint = self.strToList(keys + f";{LIST[index+1]}", float)
+                self.generateSupportPillar(lowerPoint, upperPoint)
+    
+    def generateSupportPillar(self, lowerPoint, upperPoint):
+        pillarRadius = self.getPillarRadius(lowerPoint, upperPoint)
+        upperRingZ   = upperPoint[2] - self.getPillarRingZ(lowerPoint, upperPoint)
+        lowerRingZ   = lowerPoint[2] + self.getPillarRingZ(lowerPoint, upperPoint) * self.lowerRingMult(lowerPoint)
+
+        upperRing = self.getHexPoints(lowerPoint[0], lowerPoint[1], upperRingZ, pillarRadius)
+        lowerRing = self.getHexPoints(lowerPoint[0], lowerPoint[1], lowerRingZ, pillarRadius)
+
+        lengthGenVertices = len(self.generatedVertices)
+        faces = self.generateSupportPillarFaces(lengthGenVertices)
+
+        self.generatedFaces.extend(faces)
+
+        self.generatedVertices.append(lowerPoint)
+        self.generatedVertices.extend(lowerRing)
+        self.generatedVertices.extend(upperRing)
+        self.generatedVertices.append(upperPoint)
+    
+    def getPillarRingZ(self, lowerPoint, upperPoint):
+        lineIntersect = (upperPoint[2] - lowerPoint[2]) / (self.pillarCompHeight * 2)
+        return min(self.pillarCompHeight, lineIntersect)
+    
+    def getPillarRadius(self, lowerPoint, upperPoint):
+        lineIntersect = (upperPoint[2] - lowerPoint[2]) / (self.pillarCompHeight * 2)
+        return min(self.pillarRadius, lineIntersect)
+
+    def lowerRingMult(self, lowerPoint):
+        if lowerPoint[2] == 0:
+            return 0
+        return 1
+
+    def generateSupportPillarFaces(self, zero):
+        faces  = []
+        nIndex = 6
+        for index in range(1, 7): 
+            faces.append([zero, index + zero, nIndex + zero])
+            faces.append([index + zero, nIndex + zero, index + 6 + zero])
+            faces.append([index + 6 + zero, nIndex + 6 + zero, nIndex + zero])
+            faces.append([zero + 13, index + 6 + zero, nIndex + 6 + zero])
+            nIndex = index
+        return faces
 
 def main():
     plot    = Plot()
     printer = Printer(1000, 1000, 1000)
 
-    printer.print('./objects/doublehalfcircle.obj', innerDenstiy=3, outerDensity=2)
+    printer.print('./objects/doublehalfcircle.obj', innerDenstiy=3, outerDensity=3)
+
+    plot.plotMesh(printer.vertices, printer.faces)
+    plot.plotSurface(printer.generatedVertices, printer.generatedFaces, subplot=0)
+    plot.plotSurface(printer.generatedVertices, printer.generatedFaces, subplot=1)
+    plot.show()
 
 if __name__ == '__main__':
     main()
