@@ -6,6 +6,6 @@ class Default:
         self.defaultZSize = 100
 
         # file specific
-        self.defaultObjectFile = '../objects/cube.obj'
+        self.filePath = './objects/cube.obj'
         self.innerDenstiy = 3
         self.outerDensity = 3
