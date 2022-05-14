@@ -79,18 +79,23 @@ class Test:
         if not result == EXPECTED:
             return 1 # ERROR
         return 0
-
+    
     @test
-    def testPlaneLine(self):
+    def pointOnVector(self):
         # get
         printer = Printer(self.default.defaultXSize, self.default.defaultYSize, self.default.defaultZSize)
         # when
-        LINE = [[15.196152422706632, 16.0, 0], [15.196152422706632, 16.0, 1]]
-        POLYGON = [[15.303, 15.303, 0.0], [14.228, 17.323999999999998, 0.19], [15.98, 15.98, 0.19]]
-        result  = printer.getPointLineIntersectPlane(LINE, POLYGON)
-        
+        vector = [[0, 0, 0], [0.1, 0.1, 0.1]]
+        t = 0
+        point = []
+        point.append(vector[0][0] + (vector[1][0] - vector[0][0]) * t)
+        point.append(vector[0][1] + (vector[1][1] - vector[0][1]) * t)
+        point.append(vector[0][2] + (vector[1][2] - vector[0][2]) * t)
+        result = printer.pointOnVector(vector, point)
         # then
-        return 0
+        if result == (t <= 1 and t >= 0):
+            return 0
+        return 1
 
 def main():
     test = Test()

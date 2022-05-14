@@ -10,11 +10,11 @@ class Printer:
         # post-init (file specific)
         self.filePath  = ""
 
-        self.innerDenstiy = 3
-        self.outerDensity = 3
+        self.innerDenstiy = None
+        self.outerDensity = None
 
-        self.pillarCompHeight = 0.6
-        self.pillarRadius = 0.4
+        self.pillarCompHeight = None
+        self.pillarRadius     = None
 
         # read
         self.fileLines = []
@@ -25,45 +25,52 @@ class Printer:
         self.generatedFaces    = []
         self.generatedVertices = []
 
+        self.innerSamplePoints = []
         self.outerSamplePoints = {}
 
         # execution
         self.position = [0, 0, 0]
 
-    def print(self, filePath, innerDenstiy, outerDensity):
+    def print(self, filePath, innerDenstiy, outerDensity, pillarCompHeight=0.6, pillarRadius=0.4):
         # init
-        self.filePath     = filePath
-        self.innerDenstiy = innerDenstiy
-        self.outerDensity = outerDensity
+        self.filePath         = filePath
+        self.innerDenstiy     = innerDenstiy
+        self.outerDensity     = outerDensity
+        self.pillarCompHeight = pillarCompHeight
+        self.pillarRadius     = pillarRadius
         # reading and modifying data
         self.readData()
         self.trimData()
         self.formatFacesValue()
-        self.minPoint = self.getMinPoint() # utils
+        self.minPoint = self.getMinPoint(self.vertices) # utils
         self.normalizeData()
-        self.maxPoint = self.getMaxPoint() # utils
+        self.maxPoint = self.getMaxPoint(self.vertices) # utils
         # generate support structures
         self.generateInnerSupport()
         self.generateOuterSupport()
 
     # utils
-    def getMinPoint(self):
-        minPoint = [self.vertices[0][0], self.vertices[0][1], self.vertices[0][2]]
+    def getMinPoint(self, points):
+        minPoint = [points[0][0], points[0][1], points[0][2]]
 
-        for point in self.vertices:
+        for point in points:
             minPoint[0] = min(minPoint[0], point[0])
             minPoint[1] = min(minPoint[1], point[1])
             minPoint[2] = min(minPoint[2], point[2])
         return minPoint
 
-    def getMaxPoint(self):
-        maxPoint = [self.vertices[0][0], self.vertices[0][1], self.vertices[0][2]]
+    def getMaxPoint(self, points):
+        maxPoint = [points[0][0], points[0][1], points[0][2]]
 
-        for point in self.vertices:
+        for point in points:
             maxPoint[0] = max(maxPoint[0], point[0])
             maxPoint[1] = max(maxPoint[1], point[1])
             maxPoint[2] = max(maxPoint[2], point[2])
         return maxPoint
+
+    def getDistance(self, A, B):
+        distance = ((A[0] - B[0])**2 + (A[1] - B[1])**2 + (A[2] - B[2])**2)**0.5
+        return distance
 
     # CONSTRUCT AND GENERATE
     def getHexPoints(self, X, Y, Z, C):
@@ -99,8 +106,8 @@ class Printer:
 
     def getPointLineIntersectPlane(self, LINE, POLYGON):
         A, B, C, D = self.getPlaneEqu(POLYGON)
-        RESULT     = self.calcIntersectionPlaneLine(LINE, A, B, C, D)
-        return RESULT
+        RESULT, T  = self.calcIntersectionPlaneLine(LINE, A, B, C, D)
+        return RESULT, T
 
     def getPlaneEqu(self, POINTS):
         AB = (POINTS[1][0] - POINTS[0][0], POINTS[1][1] - POINTS[0][1], POINTS[1][2] - POINTS[0][2])
@@ -114,14 +121,23 @@ class Printer:
 
     def calcIntersectionPlaneLine(self, LINE, A, B, C, D):
         SUM = (D * (-1)) - ((A * LINE[0][0]) + (B * LINE[0][1]) + (C * LINE[0][2]))
-        MUL = (A * (LINE[1][0] - LINE[0][0])) + (B * (LINE[1][1] - LINE[0][1])) + (C * (LINE[1][2] - LINE[0][2]))
-        if not MUL == 0:
-            X = LINE[0][0] + (LINE[1][0] - LINE[0][0]) * SUM / MUL
-            Y = LINE[0][1] + (LINE[1][1] - LINE[0][1]) * SUM / MUL
-            Z = LINE[0][2] + (LINE[1][2] - LINE[0][2]) * SUM / MUL
-            return [X, Y, Z]
+        PRODUCT = (A * (LINE[1][0] - LINE[0][0])) + (B * (LINE[1][1] - LINE[0][1])) + (C * (LINE[1][2] - LINE[0][2]))
+        if not PRODUCT == 0:
+            X = LINE[0][0] + (LINE[1][0] - LINE[0][0]) * SUM / PRODUCT
+            Y = LINE[0][1] + (LINE[1][1] - LINE[0][1]) * SUM / PRODUCT
+            Z = LINE[0][2] + (LINE[1][2] - LINE[0][2]) * SUM / PRODUCT
+            return [X, Y, Z], SUM / PRODUCT
         else:
-            return -1 # ERROR
+            return -1, -1 # ERROR
+
+    def pointOnVector(self, vector, point):
+        if isinstance(point, list):
+            for index in range(len(point)):
+                if not vector[0][index] + (vector[1][index] - vector[0][index]) == 0:
+                    product = (point[index]) / (vector[0][index] + (vector[1][index] - vector[0][index]))
+                    if product >= 0 and product <= 1:
+                        return True
+        return False
 
     # MODIFY
     def listToStr(self, array):
@@ -182,7 +198,59 @@ class Printer:
     # generate support structure
     # inner
     def generateInnerSupport(self):
-        pass
+        polygons = []
+        polygons.append(self.getPlanesAlgonX())
+        polygons.append(self.getPlanesAlgonY())
+        self.getSupportPolygons(polygons)
+
+    def getPlanesAlgonX(self):
+        polygons = []
+        xValue = self.innerDenstiy / 2
+        while xValue <= self.maxPoint[0] / 2:
+            polygons.append([[self.maxPoint[0] / 2 + xValue, 0, 0], [self.maxPoint[0] / 2 + xValue, 1, 0], [self.maxPoint[0] / 2 + xValue, 0, 1]])
+            polygons.append([[self.maxPoint[0] / 2 - xValue, 0, 0], [self.maxPoint[0] / 2 - xValue, 1, 0], [self.maxPoint[0] / 2 - xValue, 0, 1]])
+            xValue += self.innerDenstiy
+        return polygons
+    
+    def getPlanesAlgonY(self):
+        polygons = []
+        yValue = self.innerDenstiy / 2
+        while yValue <= self.maxPoint[1] / 2:
+            polygons.append([[0, self.maxPoint[1] / 2 + yValue, 0], [1, self.maxPoint[1] / 2 + yValue, 0], [0, self.maxPoint[1] / 2 + yValue, 1]])
+            polygons.append([[0, self.maxPoint[1] / 2 - yValue, 0], [1, self.maxPoint[1] / 2 - yValue, 0], [0, self.maxPoint[1] / 2 - yValue, 1]])
+            yValue += self.innerDenstiy
+        return polygons
+
+    def getSupportPolygons(self, polygons):
+        supportPolygons = []
+        for index in range(2):
+            for polygon in polygons[index]:
+                faces = self.getCloseFaces(polygon, index)
+                vectors = self.getIntersectionVectors(faces, polygon)
+        return supportPolygons
+    
+    def getCloseFaces(self, plane, orientation):
+        faces = []
+        for face in self.faces:
+            polygon = self.constructPolygon(face, self.vertices)
+            maxPoint = self.getMaxPoint(polygon)
+            minPoint = self.getMinPoint(polygon)
+
+            if maxPoint[orientation] >= plane[0][orientation] and minPoint[orientation] <= plane[0][orientation]:
+                faces.append(polygon)
+        return faces
+    
+    def getIntersectionVectors(self, polygons, plane):
+        vectors = []
+        for polygon in polygons:
+            nIndex = len(polygon)-1
+            for index in range(len(polygon)):
+                vector = [polygon[index], polygon[nIndex]]
+                result, ratio = self.getPointLineIntersectPlane(vector, plane)
+                if ratio >= 0 and ratio <= 1:
+                    vectors.append(result)
+                nIndex = index
+        return vectors
 
     # outer
     def generateOuterSupport(self):
@@ -223,8 +291,8 @@ class Printer:
             polygon   = self.constructPolygon(face, self.vertices)
             isBeneath = self.pointInPolygon(polygon, point)
             if isBeneath:
-                line  = self.getLineFromRoot(point, X=0, Y=0, Z=1)
-                inter = self.getPointLineIntersectPlane(line, polygon)
+                line     = self.getLineFromRoot(point, X=0, Y=0, Z=1)
+                inter, _ = self.getPointLineIntersectPlane(line, polygon)
                 heights.append(inter[2])
         return heights
 
@@ -285,13 +353,18 @@ class Printer:
 
 def main():
     plot    = Plot()
+
+    print("TEST")
     printer = Printer(1000, 1000, 1000)
+    printer.print('./objects/torus.obj', innerDenstiy=10, outerDensity=2)
+    print("test")
 
-    printer.print('./objects/elvis.obj', innerDenstiy=3, outerDensity=2)
-
+    for elements in printer.innerSamplePoints:
+        plot.plotMesh(elements, [[item for item in range(len(elements))]], subplot=1)
     plot.plotSurface(printer.vertices, printer.faces)
     plot.plotSurface(printer.generatedVertices, printer.generatedFaces, subplot=0)
     plot.plotSurface(printer.generatedVertices, printer.generatedFaces, subplot=1)
+    # plot.plotMesh(printer.vertices, printer.faces, subplot=1)
     plot.show()
 
 if __name__ == '__main__':
