@@ -222,12 +222,12 @@ class Printer:
         return polygons
 
     def getSupportPolygons(self, polygons):
-        supportPolygons = []
         for index in range(2):
             for polygon in polygons[index]:
                 faces = self.getCloseFaces(polygon, index)
                 vectors = self.getIntersectionVectors(faces, polygon)
-        return supportPolygons
+                support = self.generateSupportPolygons(vectors)
+                self.innerSamplePoints.extend(support)
     
     def getCloseFaces(self, plane, orientation):
         faces = []
@@ -244,13 +244,53 @@ class Printer:
         vectors = []
         for polygon in polygons:
             nIndex = len(polygon)-1
+            intersectVector = []
             for index in range(len(polygon)):
                 vector = [polygon[index], polygon[nIndex]]
                 result, ratio = self.getPointLineIntersectPlane(vector, plane)
-                if ratio >= 0 and ratio <= 1:
-                    vectors.append(result)
+                if ratio > 0 and ratio <= 1:
+                    intersectVector.append(result)
                 nIndex = index
+            vectors.append(intersectVector)
         return vectors
+
+    def generateSupportPolygons(self, vectors):
+        MAXDISTANCE = 0.000001
+        support = []
+
+        while len(vectors) > 0:
+            points = 0
+            support.append([vectors[points][0]])
+            while points < len(vectors):
+                if len(vectors[points]) == 1:
+                    vectors.pop(points)
+                    points = -1
+                    break
+                index = 0
+                while index < len(vectors[points]):
+                    if self.getDistance(support[-1][-1], vectors[points][index]) < MAXDISTANCE:
+                        vectors, support = self.updateRootInPath(vectors, support, points, index)
+                        points = -1
+                        break
+                    index += 1
+                points += 1
+        print(len(support))
+        return support
+    
+    def updateRootInPath(self, vectors, support, points, index):
+        vectors[points].pop(index)
+        closest = 0
+        for itterations in range(len(vectors[points])):
+            if self.getDistance(support[-1][-1], vectors[points][itterations]) < self.getDistance(support[-1][-1], vectors[points][closest]):
+                closest = itterations
+
+        support[-1].append(vectors[points][closest])
+        vectors[points].pop(closest)
+
+        if len(vectors[points]) < 1:
+            vectors.pop(points)
+
+        return vectors, support
 
     # outer
     def generateOuterSupport(self):
@@ -364,7 +404,6 @@ def main():
     plot.plotSurface(printer.vertices, printer.faces)
     plot.plotSurface(printer.generatedVertices, printer.generatedFaces, subplot=0)
     plot.plotSurface(printer.generatedVertices, printer.generatedFaces, subplot=1)
-    # plot.plotMesh(printer.vertices, printer.faces, subplot=1)
     plot.show()
 
 if __name__ == '__main__':

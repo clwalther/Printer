@@ -8,14 +8,13 @@ def test(element):
 class UnitTests:
     def __init__(self):
         self.fatal  = 0 # the test couldn't be fully run [2]*
-        self.failed = 0 # the test recived an unexcpected result [1]
+        self.failed = 0 # the test received an unexcpected result [1]
         self.passed = 0 # the test passed as excpected [0]
         self.invalidReturn = 0 # if the returned value is not one of the above*
         self.total  = 0 # all tests
+        self.errors = {} # logs all error messages if fatal or failed
 
-        self.errors = {} # docs all error messages if fatal
-
-        # *) this error code should not acutally be returned from the testing function.
+        # *) this error code should not actually be returned from the testing function.
     
     def run(self, CLASS):
         METHODS = self.getMethods(CLASS)
