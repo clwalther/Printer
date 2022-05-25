@@ -407,13 +407,9 @@ def main():
     plot    = Plot()
 
     printer = Printer(1000, 1000, 1000)
-    printer.print('./objects/torus.obj', innerDenstiy=5, outerDensity=2)
+    printer.print('./objects/cube.obj', innerDenstiy=5, outerDensity=2)
 
-    # for elements in printer.innerSamplePoints:
-    #     plot.plotMesh(elements, [[item for item in range(len(elements))]], subplot=1)
     plot.plotSurface(printer.vertices, printer.faces, subplot=0)
-    # plot.plotSurface(printer.generatedVertices, printer.generatedFaces, subplot=0)
-    # plot.plotSurface(printer.generatedVertices, printer.generatedFaces, subplot=1)
     plot.plotMesh(printer.generatedVertices, printer.generatedFaces, subplot=1)
     plot.show()
 
