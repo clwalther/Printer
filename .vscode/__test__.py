@@ -1,5 +1,3 @@
-import datetime
-
 # attribute
 # @test
 def test(element):
@@ -10,14 +8,13 @@ def test(element):
 class UnitTests:
     def __init__(self):
         self.fatal  = 0 # the test couldn't be fully run [2]*
-        self.failed = 0 # the test recived an unexcpected result [1]
+        self.failed = 0 # the test received an unexcpected result [1]
         self.passed = 0 # the test passed as excpected [0]
         self.invalidReturn = 0 # if the returned value is not one of the above*
         self.total  = 0 # all tests
+        self.errors = {} # logs all error messages if fatal or failed
 
-        self.errors = {} # docs all error messages if fatal
-
-        # *) this error code should not be acutally be returned from the testing function.
+        # *) this error code should not actually be returned from the testing function.
     
     def run(self, CLASS):
         METHODS = self.getMethods(CLASS)
@@ -57,11 +54,12 @@ class UnitTests:
                     
     def report(self, CLASS):
         CLASSSTRING = str(CLASS).split('.')[1].split(' ')[0]
-        REPORT = f""">>> UTILS TEST REPORT FOR: {CLASSSTRING} <<<
+        REPORT = f""">>> UNIT TEST REPORT FOR: {CLASSSTRING} <<<
 
-        METHODS FATAL:  {self.fatal},
-        METHODS FAILED: {self.failed},
-        METHODS PASSED: {self.passed},
+        METHODS FATAL:   {self.fatal},
+        METHODS FAILED:  {self.failed},
+        METHODS PASSED:  {self.passed},
+        METHODS INVALID: {self.invalidReturn}
 
         METHODS TOTAL:  {self.total}\n\n>>> ERROR MESSAGE(S) <<<
         {self.generateErrorMsgs(CLASSSTRING)}
