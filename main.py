@@ -25,7 +25,6 @@ class Printer:
         self.generatedFaces    = []
         self.generatedVertices = []
 
-        self.innerSamplePoints = []
         self.outerSamplePoints = {}
 
         # execution
@@ -201,7 +200,8 @@ class Printer:
         polygons = []
         polygons.append(self.getPlanesAlgonX())
         polygons.append(self.getPlanesAlgonY())
-        self.getSupportPolygons(polygons)
+        supportPolygons = self.getSupportPolygons(polygons)
+        self.appendSupportPolygonsToGenerated(supportPolygons)
 
     def getPlanesAlgonX(self):
         polygons = []
@@ -222,12 +222,14 @@ class Printer:
         return polygons
 
     def getSupportPolygons(self, polygons):
+        supportPolygons = []
         for index in range(2):
             for polygon in polygons[index]:
                 faces = self.getCloseFaces(polygon, index)
                 vectors = self.getIntersectionVectors(faces, polygon)
                 support = self.generateSupportPolygons(vectors)
-                self.innerSamplePoints.extend(support)
+                supportPolygons.extend(support)
+        return supportPolygons
     
     def getCloseFaces(self, plane, orientation):
         faces = []
@@ -265,32 +267,42 @@ class Printer:
                 if len(vectors[points]) == 1:
                     vectors.pop(points)
                     points = -1
-                    break
-                index = 0
-                while index < len(vectors[points]):
-                    if self.getDistance(support[-1][-1], vectors[points][index]) < MAXDISTANCE:
-                        vectors, support = self.updateRootInPath(vectors, support, points, index)
-                        points = -1
-                        break
-                    index += 1
+                else:
+                    index = 0
+                    while index < len(vectors[points]):
+                        if self.getDistance(support[-1][-1], vectors[points][index]) < MAXDISTANCE:
+                            vectors, support = self.updateRootInPath(vectors, support, points, index)
+                            points = -1
+                            break
+                        index += 1
                 points += 1
-        print(len(support))
         return support
     
     def updateRootInPath(self, vectors, support, points, index):
         vectors[points].pop(index)
-        closest = 0
-        for itterations in range(len(vectors[points])):
-            if self.getDistance(support[-1][-1], vectors[points][itterations]) < self.getDistance(support[-1][-1], vectors[points][closest]):
-                closest = itterations
-
+        closest = self.getClosetsVerticeByIndex(support[-1][-1], vectors[points])
         support[-1].append(vectors[points][closest])
         vectors[points].pop(closest)
+        self.checkCredibilityFace(vectors, points)
+        return vectors, support
 
+    def getClosetsVerticeByIndex(self, point, points):
+        closest = 0
+        for index in range(len(points)):
+            if self.getDistance(point, points[index]) < self.getDistance(point, points[closest]):
+                closest = index
+        return closest
+
+    def checkCredibilityFace(self, vectors, points):
         if len(vectors[points]) < 1:
             vectors.pop(points)
+        return vectors
 
-        return vectors, support
+    def appendSupportPolygonsToGenerated(self, supportPolygons):
+        for polygon in supportPolygons:
+            index = len(self.generatedVertices)
+            self.generatedFaces.append([i + index for i in range(len(polygon))])
+            self.generatedVertices.extend(polygon)
 
     # outer
     def generateOuterSupport(self):
@@ -394,16 +406,15 @@ class Printer:
 def main():
     plot    = Plot()
 
-    print("TEST")
     printer = Printer(1000, 1000, 1000)
-    printer.print('./objects/torus.obj', innerDenstiy=10, outerDensity=2)
-    print("test")
+    printer.print('./objects/torus.obj', innerDenstiy=5, outerDensity=2)
 
-    for elements in printer.innerSamplePoints:
-        plot.plotMesh(elements, [[item for item in range(len(elements))]], subplot=1)
-    plot.plotSurface(printer.vertices, printer.faces)
-    plot.plotSurface(printer.generatedVertices, printer.generatedFaces, subplot=0)
-    plot.plotSurface(printer.generatedVertices, printer.generatedFaces, subplot=1)
+    # for elements in printer.innerSamplePoints:
+    #     plot.plotMesh(elements, [[item for item in range(len(elements))]], subplot=1)
+    plot.plotSurface(printer.vertices, printer.faces, subplot=0)
+    # plot.plotSurface(printer.generatedVertices, printer.generatedFaces, subplot=0)
+    # plot.plotSurface(printer.generatedVertices, printer.generatedFaces, subplot=1)
+    plot.plotMesh(printer.generatedVertices, printer.generatedFaces, subplot=1)
     plot.show()
 
 if __name__ == '__main__':
