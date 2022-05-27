@@ -10,6 +10,8 @@ class Printer:
         # post-init (file specific)
         self.filePath  = ""
 
+        self.precision = None
+
         self.innerDenstiy = None
         self.outerDensity = None
 
@@ -27,12 +29,16 @@ class Printer:
 
         self.outerSamplePoints = {}
 
+        # slice
+        self.slice = []
+
         # execution
         self.position = [0, 0, 0]
 
-    def print(self, filePath, innerDenstiy, outerDensity, pillarCompHeight=0.6, pillarRadius=0.4):
+    def print(self, filePath, precision, innerDenstiy, outerDensity, pillarCompHeight=0.6, pillarRadius=0.4):
         # init
         self.filePath         = filePath
+        self.precision        = precision
         self.innerDenstiy     = innerDenstiy
         self.outerDensity     = outerDensity
         self.pillarCompHeight = pillarCompHeight
@@ -47,6 +53,8 @@ class Printer:
         # generate support structures
         self.generateInnerSupport()
         self.generateOuterSupport()
+        # slice
+        self.sliceModel()
 
     # utils
     def getMinPoint(self, points):
@@ -70,6 +78,14 @@ class Printer:
     def getDistance(self, A, B):
         distance = ((A[0] - B[0])**2 + (A[1] - B[1])**2 + (A[2] - B[2])**2)**0.5
         return distance
+
+    def getPlaneX(self, X):
+        POINTS = [[X, 0, 0], [X, 1, 0], [X, 0, 1]]
+        return POINTS
+
+    def getPlaneZ(self, Z):
+        POINTS = [[0, 0, Z], [1, 0, Z], [0, 1, Z]]
+        return POINTS
 
     # CONSTRUCT AND GENERATE
     def getHexPoints(self, X, Y, Z, C):
@@ -137,6 +153,74 @@ class Printer:
                     if product >= 0 and product <= 1:
                         return True
         return False
+
+    def getCloseFaces(self, plane, orientation, vertices, faces):
+        closeFaces = []
+        for face in faces:
+            polygon = self.constructPolygon(face, vertices)
+            maxPoint = self.getMaxPoint(polygon)
+            minPoint = self.getMinPoint(polygon)
+
+            if maxPoint[orientation] >= plane[0][orientation] and minPoint[orientation] <= plane[0][orientation]:
+                closeFaces.append(polygon)
+        return closeFaces
+    
+    def getIntersectionVectors(self, polygons, plane):
+        vectors = []
+        for polygon in polygons:
+            nIndex = len(polygon)-1
+            intersectVector = []
+            for index in range(len(polygon)):
+                vector = [polygon[index], polygon[nIndex]]
+                result, ratio = self.getPointLineIntersectPlane(vector, plane)
+                if ratio >= 0 and ratio <= 1 and not result in intersectVector:
+                    intersectVector.append(result)
+                nIndex = index
+            if len(intersectVector) > 1:
+                vectors.append(intersectVector)
+        return vectors
+
+    def generatePathway(self, vectors):
+        MAXDISTANCE = 0.000001
+        support = []
+
+        while len(vectors) > 0:
+            points = 0
+            support.append([vectors[points][0]])
+            while points < len(vectors):
+                if len(vectors[points]) == 1:
+                    vectors.pop(points)
+                    points = -1
+                else:
+                    index = 0
+                    while index < len(vectors[points]):
+                        if self.getDistance(support[-1][-1], vectors[points][index]) < MAXDISTANCE:
+                            vectors, support = self.updateRootInPath(vectors, support, points, index)
+                            points = -1
+                            break
+                        index += 1
+                points += 1
+        return support
+
+    def updateRootInPath(self, vectors, support, points, index):
+        vectors[points].pop(index)
+        closest = self.getClosetsVerticeByIndex(support[-1][-1], vectors[points])
+        support[-1].append(vectors[points][closest])
+        vectors[points].pop(closest)
+        self.checkCredibilityFace(vectors, points)
+        return vectors, support
+
+    def getClosetsVerticeByIndex(self, point, points):
+        closest = 0
+        for index in range(len(points)):
+            if self.getDistance(point, points[index]) < self.getDistance(point, points[closest]):
+                closest = index
+        return closest
+
+    def checkCredibilityFace(self, vectors, points):
+        if len(vectors[points]) < 1:
+            vectors.pop(points)
+        return vectors
 
     # MODIFY
     def listToStr(self, array):
@@ -225,79 +309,12 @@ class Printer:
         supportPolygons = []
         for index in range(2):
             for polygon in polygons[index]:
-                faces = self.getCloseFaces(polygon, index)
+                faces = self.getCloseFaces(polygon, index, self.vertices, self.faces)
                 vectors = self.getIntersectionVectors(faces, polygon)
-                support = self.generateSupportPolygons(vectors)
+                support = self.generatePathway(vectors)
                 supportPolygons.extend(support)
         return supportPolygons
     
-    def getCloseFaces(self, plane, orientation):
-        faces = []
-        for face in self.faces:
-            polygon = self.constructPolygon(face, self.vertices)
-            maxPoint = self.getMaxPoint(polygon)
-            minPoint = self.getMinPoint(polygon)
-
-            if maxPoint[orientation] >= plane[0][orientation] and minPoint[orientation] <= plane[0][orientation]:
-                faces.append(polygon)
-        return faces
-    
-    def getIntersectionVectors(self, polygons, plane):
-        vectors = []
-        for polygon in polygons:
-            nIndex = len(polygon)-1
-            intersectVector = []
-            for index in range(len(polygon)):
-                vector = [polygon[index], polygon[nIndex]]
-                result, ratio = self.getPointLineIntersectPlane(vector, plane)
-                if ratio > 0 and ratio <= 1:
-                    intersectVector.append(result)
-                nIndex = index
-            vectors.append(intersectVector)
-        return vectors
-
-    def generateSupportPolygons(self, vectors):
-        MAXDISTANCE = 0.000001
-        support = []
-
-        while len(vectors) > 0:
-            points = 0
-            support.append([vectors[points][0]])
-            while points < len(vectors):
-                if len(vectors[points]) == 1:
-                    vectors.pop(points)
-                    points = -1
-                else:
-                    index = 0
-                    while index < len(vectors[points]):
-                        if self.getDistance(support[-1][-1], vectors[points][index]) < MAXDISTANCE:
-                            vectors, support = self.updateRootInPath(vectors, support, points, index)
-                            points = -1
-                            break
-                        index += 1
-                points += 1
-        return support
-    
-    def updateRootInPath(self, vectors, support, points, index):
-        vectors[points].pop(index)
-        closest = self.getClosetsVerticeByIndex(support[-1][-1], vectors[points])
-        support[-1].append(vectors[points][closest])
-        vectors[points].pop(closest)
-        self.checkCredibilityFace(vectors, points)
-        return vectors, support
-
-    def getClosetsVerticeByIndex(self, point, points):
-        closest = 0
-        for index in range(len(points)):
-            if self.getDistance(point, points[index]) < self.getDistance(point, points[closest]):
-                closest = index
-        return closest
-
-    def checkCredibilityFace(self, vectors, points):
-        if len(vectors[points]) < 1:
-            vectors.pop(points)
-        return vectors
-
     def appendSupportPolygonsToGenerated(self, supportPolygons):
         for polygon in supportPolygons:
             index = len(self.generatedVertices)
@@ -355,7 +372,7 @@ class Printer:
                 lowerPoint = self.strToList(keys + f";{LIST[index+0]}", float)
                 upperPoint = self.strToList(keys + f";{LIST[index+1]}", float)
                 self.generateSupportPillar(lowerPoint, upperPoint)
-    
+
     def getSortedSamplePoints(self, key):
         LIST = sorted(self.outerSamplePoints[key])
         LIST.insert(0, 0.0)
@@ -378,11 +395,11 @@ class Printer:
         self.generatedVertices.extend(lowerRing)
         self.generatedVertices.extend(upperRing)
         self.generatedVertices.append(upperPoint)
-    
+
     def getPillarRingZ(self, lowerPoint, upperPoint):
         lineIntersect = (upperPoint[2] - lowerPoint[2]) / (self.pillarCompHeight * 2)
         return min(self.pillarCompHeight, lineIntersect)
-    
+
     def getPillarRadius(self, lowerPoint, upperPoint):
         lineIntersect = (upperPoint[2] - lowerPoint[2]) / (self.pillarCompHeight * 2)
         return min(self.pillarRadius, lineIntersect)
@@ -403,14 +420,98 @@ class Printer:
             nIndex = index
         return faces
 
+    # slice
+    def sliceModel(self):
+        parallelFaces   = self.getParallelFaces()
+        parallelVectors = self.getParallelVectors(parallelFaces)
+        self.getSlices(parallelVectors)
+
+    def getParallelFaces(self):
+        parallelFaces = []
+        for face in self.faces:
+            polygon  = self.constructPolygon(face, self.vertices)
+            minPoint = self.getMinPoint(polygon)
+            maxPoint = self.getMaxPoint(polygon)
+            parallelFaces = self.collectParallelFaces(minPoint, maxPoint, polygon, parallelFaces)
+        return parallelFaces
+
+    def collectParallelFaces(self, a, b, polygon, parallelFaces):
+        if abs(a[2] - b[2]) < self.precision:
+            parallelFaces.append(polygon)
+        return parallelFaces
+
+    def getParallelVectors(self, parallelFaces):
+        faces = {}
+        for polygon in parallelFaces:
+            vectors = self.getCrossingVectors(polygon)
+            faces = self.prepareFacesForParallelVectors(polygon, faces)
+            faces = self.extendFacesForParallelVectors(polygon, faces, vectors)
+        return faces
+
+    def prepareFacesForParallelVectors(self, polygon, faces):
+        if not polygon[0][2] in faces.keys():
+            faces[polygon[0][2]] = []
+        return faces
+    
+    def extendFacesForParallelVectors(self, polygon, faces, vectors):
+        if len(vectors) > 0:
+            faces[polygon[0][2]].extend(vectors)
+        return faces
+
+    def getCrossingVectors(self, polygon):
+        vectors = []
+        xValue = self.getMinPoint(polygon)[0]
+        while xValue <= self.getMaxPoint(polygon)[0]:
+            plane = self.getPlaneX(xValue)
+            intersect = self.getIntersectionVectors([polygon], plane)
+            vectors = self.extendVectorsForCrossing(intersect, vectors)
+            xValue += self.precision
+        return vectors
+
+    def extendVectorsForCrossing(self, vector, vectors):
+        if len(vector) > 0:
+            vectors.extend(vector)
+        return vectors
+
+    def getSlices(self, parallelVectors):
+        zValue = 0
+        while zValue <= self.maxPoint[2]:
+            faces = []
+            plane = self.getPlaneZ(zValue)
+            faces.extend(self.getCloseFaces(plane, 2, self.vertices, self.faces))
+            faces.extend(self.getCloseFaces(plane, 2, self.generatedVertices, self.generatedFaces))
+            vectors  = self.getIntersectionVectors(faces, plane)
+            vectors  = self.includeParallelFaces(zValue, parallelVectors, vectors)
+            polygons = self.generatePathway(vectors)
+            
+            self.slice.append(polygons)
+            
+            zValue += self.precision
+
+    def includeParallelFaces(self, zValue, parallelVectors, vectors):
+        for keys in parallelVectors.keys():
+            if abs(keys - zValue) < self.precision:
+                vectors.extend([vector for vector in parallelVectors[keys]])
+        return vectors
+
 def main():
-    plot    = Plot()
+    plot = Plot()
 
     printer = Printer(1000, 1000, 1000)
-    printer.print('./objects/cube.obj', innerDenstiy=5, outerDensity=2)
+    printer.print('./objects/cube.obj', precision=0.1, innerDenstiy=5, outerDensity=2)
 
     plot.plotSurface(printer.vertices, printer.faces, subplot=0)
     plot.plotMesh(printer.generatedVertices, printer.generatedFaces, subplot=1)
+
+    vertices = []
+    faces = []
+    for row in printer.slice:
+        for elements in row:
+            index = len(vertices)
+            vertices.extend([[round(value, 6) for value in point] for point in elements])
+            faces.append([i + index for i in range(len(elements))])
+    
+    plot.plotMesh(vertices, faces, subplot=1)
     plot.show()
 
 if __name__ == '__main__':
