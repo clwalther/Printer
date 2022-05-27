@@ -485,7 +485,7 @@ class Printer:
             polygons = self.generatePathway(vectors)
             
             self.slice.append(polygons)
-            
+        
             zValue += self.precision
 
     def includeParallelFaces(self, zValue, parallelVectors, vectors):
