@@ -145,15 +145,6 @@ class Printer:
         else:
             return -1, -1 # ERROR
 
-    def pointOnVector(self, vector, point):
-        if isinstance(point, list):
-            for index in range(len(point)):
-                if not vector[0][index] + (vector[1][index] - vector[0][index]) == 0:
-                    product = (point[index]) / (vector[0][index] + (vector[1][index] - vector[0][index]))
-                    if product >= 0 and product <= 1:
-                        return True
-        return False
-
     def getCloseFaces(self, plane, orientation, vertices, faces):
         closeFaces = []
         for face in faces:
@@ -165,7 +156,7 @@ class Printer:
                 closeFaces.append(polygon)
         return closeFaces
     
-    def getIntersectionVectors(self, polygons, plane):
+    def getIntersectingVectors(self, polygons, plane):
         vectors = []
         for polygon in polygons:
             nIndex = len(polygon)-1
@@ -310,7 +301,7 @@ class Printer:
         for index in range(2):
             for polygon in polygons[index]:
                 faces = self.getCloseFaces(polygon, index, self.vertices, self.faces)
-                vectors = self.getIntersectionVectors(faces, polygon)
+                vectors = self.getIntersectingVectors(faces, polygon)
                 support = self.generatePathway(vectors)
                 supportPolygons.extend(support)
         return supportPolygons
@@ -422,77 +413,68 @@ class Printer:
 
     # slice
     def sliceModel(self):
-        parallelFaces   = self.getParallelFaces()
-        parallelVectors = self.getParallelVectors(parallelFaces)
-        self.getSlices(parallelVectors)
+        parallelFaces = self.getParallelFaces()
+        self.getSlices(parallelFaces)
 
     def getParallelFaces(self):
         parallelFaces = []
         for face in self.faces:
-            polygon  = self.constructPolygon(face, self.vertices)
+            polygon = self.constructPolygon(face, self.vertices)
             minPoint = self.getMinPoint(polygon)
             maxPoint = self.getMaxPoint(polygon)
-            parallelFaces = self.collectParallelFaces(minPoint, maxPoint, polygon, parallelFaces)
+            parallelFaces = self.extendParallelFaces(minPoint, maxPoint, polygon, parallelFaces)
         return parallelFaces
-
-    def collectParallelFaces(self, a, b, polygon, parallelFaces):
-        if abs(a[2] - b[2]) < self.precision:
-            parallelFaces.append(polygon)
-        return parallelFaces
-
-    def getParallelVectors(self, parallelFaces):
-        faces = {}
-        for polygon in parallelFaces:
-            vectors = self.getCrossingVectors(polygon)
-            faces = self.prepareFacesForParallelVectors(polygon, faces)
-            faces = self.extendFacesForParallelVectors(polygon, faces, vectors)
-        return faces
-
-    def prepareFacesForParallelVectors(self, polygon, faces):
-        if not polygon[0][2] in faces.keys():
-            faces[polygon[0][2]] = []
-        return faces
     
-    def extendFacesForParallelVectors(self, polygon, faces, vectors):
-        if len(vectors) > 0:
-            faces[polygon[0][2]].extend(vectors)
-        return faces
+    def extendParallelFaces(self, minPoint, maxPoint, polygon, parallelFaces):
+        if not maxPoint[0] - minPoint[0] == 0:
+            if (maxPoint[2] - minPoint[2]) / (maxPoint[0] - minPoint[0]) < self.precision:
+                parallelFaces.append(polygon)
+        elif not maxPoint[1] - minPoint[1] == 0:
+            if (maxPoint[2] - minPoint[2]) / (maxPoint[1] - minPoint[1]) < self.precision:
+                parallelFaces.append(polygon)
+        return parallelFaces
 
-    def getCrossingVectors(self, polygon):
-        vectors = []
-        xValue = self.getMinPoint(polygon)[0]
-        while xValue <= self.getMaxPoint(polygon)[0]:
-            plane = self.getPlaneX(xValue)
-            intersect = self.getIntersectionVectors([polygon], plane)
-            vectors = self.extendVectorsForCrossing(intersect, vectors)
-            xValue += self.precision
-        return vectors
-
-    def extendVectorsForCrossing(self, vector, vectors):
-        if len(vector) > 0:
-            vectors.extend(vector)
-        return vectors
-
-    def getSlices(self, parallelVectors):
+    def getSlices(self, parallelFaces):
         zValue = 0
         while zValue <= self.maxPoint[2]:
             faces = []
             plane = self.getPlaneZ(zValue)
             faces.extend(self.getCloseFaces(plane, 2, self.vertices, self.faces))
             faces.extend(self.getCloseFaces(plane, 2, self.generatedVertices, self.generatedFaces))
-            vectors  = self.getIntersectionVectors(faces, plane)
-            vectors  = self.includeParallelFaces(zValue, parallelVectors, vectors)
-            polygons = self.generatePathway(vectors)
-            
+            vectors = self.getIntersectingVectors(faces, plane)
+            vectors = self.extendParallelVectors(zValue, vectors, parallelFaces)
+            polygons = self.generatePathway(list(vectors))
             self.slice.append(polygons)
-        
+
             zValue += self.precision
 
-    def includeParallelFaces(self, zValue, parallelVectors, vectors):
-        for keys in parallelVectors.keys():
-            if abs(keys - zValue) < self.precision:
-                vectors.extend([vector for vector in parallelVectors[keys]])
+    def extendParallelVectors(self, zValue, vectors, parallelFaces):
+        parallelVectors = self.getParallelVectors(parallelFaces, zValue)
+        vectors.extend(parallelVectors)
         return vectors
+    
+    def getParallelVectors(self, parallelFaces, zValue):
+        parallelVectors = []
+        for polygon in parallelFaces:
+            if abs(polygon[0][2] - zValue) < self.precision:
+                minPoint = self.getMinPoint(polygon)
+                maxPoint = self.getMaxPoint(polygon)
+
+                xValue = minPoint[0]
+                while xValue < maxPoint[0]:
+                    plane = self.getPlaneX(xValue)
+                    vectors = self.getIntersectingVectors([polygon], plane)
+                    parallelVectors = self.addParallelVectors(vectors, parallelVectors)
+                    xValue += self.precision
+        return parallelVectors
+
+    def addParallelVectors(self, vectors, parallelVectors):
+        if len(vectors) > 0:
+            zValue = vectors[0][0][2]
+            for vector in vectors:
+                if len(vector) > 0:
+                    parallelVectors.append(list(vector))
+        return parallelVectors
 
 def main():
     plot = Plot()
@@ -501,7 +483,7 @@ def main():
     printer.print('./objects/cube.obj', precision=0.1, innerDenstiy=5, outerDensity=2)
 
     plot.plotSurface(printer.vertices, printer.faces, subplot=0)
-    plot.plotMesh(printer.generatedVertices, printer.generatedFaces, subplot=1)
+    plot.plotMesh(printer.generatedVertices, printer.generatedFaces, subplot=0)
 
     vertices = []
     faces = []
@@ -509,8 +491,8 @@ def main():
         for elements in row:
             index = len(vertices)
             vertices.extend([[round(value, 6) for value in point] for point in elements])
-            faces.append([i + index for i in range(len(elements))])
-    
+            faces.append([i + index for i in range(len(elements))])  
+
     plot.plotMesh(vertices, faces, subplot=1)
     plot.show()
 
