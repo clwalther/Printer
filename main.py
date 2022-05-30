@@ -30,7 +30,7 @@ class Printer:
         self.outerSamplePoints = {}
 
         # slice
-        self.slice = []
+        self.toolPath = []
 
         # execution
         self.position = [0, 0, 0]
@@ -55,6 +55,7 @@ class Printer:
         self.generateOuterSupport()
         # slice
         self.sliceModel()
+        self.writeToolPath()
 
     # utils
     def getMinPoint(self, points):
@@ -444,7 +445,7 @@ class Printer:
             vectors = self.getIntersectingVectors(faces, plane)
             vectors = self.extendParallelVectors(zValue, vectors, parallelFaces)
             polygons = self.generatePathway(list(vectors))
-            self.slice.append(polygons)
+            self.toolPath.append(polygons)
 
             zValue += self.precision
 
@@ -476,25 +477,26 @@ class Printer:
                     parallelVectors.append(list(vector))
         return parallelVectors
 
+    def writeToolPath(self):
+        string = self.convertToolPathToString()
+        with open('Tool_Path.txt', 'w') as f:
+            f.write(string)
+    
+    def convertToolPathToString(self):
+        string = ""
+        for row in self.toolPath:
+            for vector in row:
+                for point in vector:
+                    string += f"{self.listToStr(point)}\n"
+                string += "\n"
+            string += "\n"
+        return string
+
 def main():
     plot = Plot()
 
     printer = Printer(1000, 1000, 1000)
     printer.print('./objects/cube.obj', precision=0.1, innerDenstiy=5, outerDensity=2)
-
-    plot.plotSurface(printer.vertices, printer.faces, subplot=0)
-    plot.plotMesh(printer.generatedVertices, printer.generatedFaces, subplot=0)
-
-    vertices = []
-    faces = []
-    for row in printer.slice:
-        for elements in row:
-            index = len(vertices)
-            vertices.extend([[round(value, 6) for value in point] for point in elements])
-            faces.append([i + index for i in range(len(elements))])  
-
-    plot.plotMesh(vertices, faces, subplot=1)
-    plot.show()
 
 if __name__ == '__main__':
     main()
