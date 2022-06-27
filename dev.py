@@ -16,6 +16,10 @@ class Plot:
     def vertices(self, vertices, subplot=0):
         for vertice in vertices:
             self.subplot[subplot].plot(vertice[0], vertice[1], vertice[2], 'X')
+    
+    def line(self, vertices, subplot=0):
+        vertices = np.array(vertices)
+        self.subplot[subplot].plot(vertices[:,0], vertices[:,1], vertices[:,2])
 
     def mesh(self, vertices, faces, subplot=0):
         for face in faces:

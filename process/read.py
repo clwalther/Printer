@@ -52,7 +52,7 @@ class Read:
         self.FACES = [[int(verticeIndex - 1) for verticeIndex in faces] for faces in self.FACES]
 
     def normalizeData(self):
-        minPoint = self.utils.getMinPoint(self.VERTICES)
+        minPoint = self.utils.general.getMinPoint(self.VERTICES)
 
         for verticeIndex in range(len(self.VERTICES)):
             self.VERTICES[verticeIndex][0] -= minPoint[0]

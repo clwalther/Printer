@@ -10,82 +10,85 @@ class Slice:
 
         self.INNER_SUPPORT_STRUCTURE = INNER_SUPPORT_STRUCTURE
         self.OUTER_SUPPORT_STRUCTURE = OUTER_SUPPORT_STRUCTURE
+
         self.FACES    = FACES
         self.VERTICES = VERTICES
 
         # vals
         self.toolPath = []
-
-        self.parallelFaces = []
-
-        self.maxPoint = self.utils.getMaxPoint(self.VERTICES)
+        
+        self.leveledVectors = {}
+        self.maxPoint = self.utils.general.getMaxPoint(self.VERTICES)
 
         # direct method_call
-        self.cut()
-        
+        self.run()
 
-    def cut(self):
-        self.getParallelFaces()
+    def run(self):
+        self.generateLeveledVectors()
         self.getSlices()
         print("SLICE SUCCESS", end=', ')
-    
-    def getParallelFaces(self):
+
+    def generateLeveledVectors(self):
         for face in self.FACES:
-            polygon  = self.utils.constructPolygon(face, self.VERTICES)
-            minPoint = self.utils.getMinPoint(polygon)
-            maxPoint = self.utils.getMaxPoint(polygon)
-            self.appendParallelFaces(minPoint, maxPoint, polygon)
-    
-    def appendParallelFaces(self, minPoint, maxPoint, polygon):
+            polygon  = self.utils.generate.polygon(face, self.VERTICES)
+            minPoint = self.utils.general.getMinPoint(polygon)
+            maxPoint = self.utils.general.getMaxPoint(polygon)
+            self.checkPolygonDelta(polygon, minPoint, maxPoint)
+        
+    def checkPolygonDelta(self, polygon, minPoint, maxPoint):
         if not maxPoint[0] - minPoint[0] == 0:
             if (maxPoint[2] - minPoint[2]) / (maxPoint[0] - minPoint[0]) < self.PRECISION:
-                self.parallelFaces.append(polygon)
+                self.extendLeveledVectors(polygon, minPoint, maxPoint)
         elif not maxPoint[1] - minPoint[1] == 0:
             if (maxPoint[2] - minPoint[2]) / (maxPoint[1] - minPoint[1]) < self.PRECISION:
-                self.parallelFaces.append(polygon)
+                self.extendLeveledVectors(polygon, minPoint, maxPoint)
+    
+    def extendLeveledVectors(self, polygon, minPoint, maxPoint):
+        xValue = minPoint[0]
+        while xValue <= maxPoint[0]:
+            plane  = self.utils.generate.planeX(xValue)
+            vector = self.utils.geometry.getVectorsInterPOLYGONS_PLANE([polygon], plane)
+            
+            self.handleLeveledVectors(vector)
+            xValue += self.PRECISION
+    
+    def handleLeveledVectors(self, vector):
+        if len(vector) >= 1:
+            zKey = self.utils.general.getClosestMultiple(vector[0][0][2], self.PRECISION)
+            self.prepareLeveledVectors(zKey)
+            self.leveledVectors[zKey].extend(vector)
+    
+    def prepareLeveledVectors(self, zKey):
+        if not zKey in self.leveledVectors.keys():
+            self.leveledVectors[zKey] = []
 
     def getSlices(self):
         zValue = 0
-        while zValue <= self.maxPoint[2]:
-            faces = []
-            plane = self.utils.getPlaneZ(zValue)
+        while zValue <= self.maxPoint[2] + self.PRECISION:
+            plane   = self.utils.generate.planeZ(zValue)
+            faces   = self.getFaces(plane)
+            vectors = self.getVectors(faces, plane, zValue)
+            polygon = self.utils.pathalgo.generatePathway(vectors)
             
-            faces.extend(self.utils.getCloseFaces(plane, 2, self.VERTICES, self.FACES))
-            faces.extend(self.utils.getCloseFaces(plane, 2, self.INNER_SUPPORT_STRUCTURE.generatedVertices, self.INNER_SUPPORT_STRUCTURE.generatedFaces))
-            faces.extend(self.utils.getCloseFaces(plane, 2, self.OUTER_SUPPORT_STRUCTURE.generatedVertices, self.OUTER_SUPPORT_STRUCTURE.generatedFaces))
-            
-            vectors = self.utils.getIntersectingVectors(faces, plane)
-            vectors = self.extendParallelVectors(zValue, vectors)
-            
-            polygons = self.utils.generatePathway(list(vectors))
-            self.toolPath.append(polygons)
+            self.toolPath.extend(polygon)
+            zValue += self.PRECISION        
+    
+    def getFaces(self, plane):
+        faces = []
+        faces.extend(self.utils.general.getCloseFaces(plane, 2, self.VERTICES, self.FACES))
+        faces.extend(self.utils.general.getCloseFaces(plane, 2, self.INNER_SUPPORT_STRUCTURE.generatedVertices, self.INNER_SUPPORT_STRUCTURE.generatedFaces))
+        faces.extend(self.utils.general.getCloseFaces(plane, 2, self.OUTER_SUPPORT_STRUCTURE.generatedVertices, self.OUTER_SUPPORT_STRUCTURE.generatedFaces))
+        return faces
 
-            zValue += self.PRECISION
-
-    def extendParallelVectors(self, zValue, vectors):
-        parallelVectors = self.getParallelVectors(zValue)
-        vectors.extend(parallelVectors)
+    def getVectors(self, faces, plane, zValue):
+        vectors = []
+        vectors.extend(self.utils.geometry.getVectorsInterPOLYGONS_PLANE(faces, plane))
+        vectors.extend(self.getLeveledVectors(zValue))
         return vectors
     
-    def getParallelVectors(self, zValue):
-        parallelVectors = []
-        for polygon in self.parallelFaces:
-            if abs(polygon[0][2] - zValue) < self.PRECISION:
-                minPoint = self.utils.getMinPoint(polygon)
-                maxPoint = self.utils.getMaxPoint(polygon)
+    def getLeveledVectors(self, zValue):
+        zKey = self.utils.general.getClosestMultiple(zValue, self.PRECISION)
 
-                xValue = minPoint[0]
-                while xValue < maxPoint[0]:
-                    plane = self.utils.getPlaneX(xValue)
-                    vectors = self.utils.getIntersectingVectors([polygon], plane)
-                    parallelVectors = self.addParallelVectors(vectors, parallelVectors)
-                    xValue += self.PRECISION
-        return parallelVectors
-
-    def addParallelVectors(self, vectors, parallelVectors):
-        if len(vectors) > 0:
-            zValue = vectors[0][0][2]
-            for vector in vectors:
-                if len(vector) > 0:
-                    parallelVectors.append(list(vector))
-        return parallelVectors
+        if zKey in self.leveledVectors.keys():
+            return self.leveledVectors[zKey]
+        return []

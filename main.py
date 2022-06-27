@@ -54,24 +54,25 @@ class Printer:
             self.READ.VERTICES
         )
         self.timer.checkpoint()
-        # self.plot.vertices(self.SLICE.toolPath[0], 0)
-        # self.plot.show()
+        for smt in self.SLICE.toolPath:
+            self.plot.line(smt, 1)
+        self.plot.show()
         
         self.timer.printTimestamps()
 
 def main():
     printer = Printer()
 
-    FILE_PATH     = './objects/halfball.obj'
-    PRECISION     = 0.1
+    FILE_PATH     = './objects/cube.obj'
+    PRECISION     = 0.5
     INNER_DENSITY = 5.0
     OUTER_DENSITY = 2.0
 
     printer.print(
-        FILE_PATH=FILE_PATH,
-        PRECISION=PRECISION,
-        INNER_DENSITY=INNER_DENSITY,
-        OUTER_DENSITY=OUTER_DENSITY
+        FILE_PATH     = FILE_PATH,
+        PRECISION     = PRECISION,
+        INNER_DENSITY = INNER_DENSITY,
+        OUTER_DENSITY = OUTER_DENSITY
     )
 
 if __name__ == '__main__':
