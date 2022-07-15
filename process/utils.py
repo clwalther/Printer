@@ -57,7 +57,7 @@ class General():
 
 class Geometry:
     def __init__(self):
-        pass
+        self.generate = Generate()
 
     def pointInPolygon(self, POLYGON, POINT):
         odd = False
@@ -80,24 +80,41 @@ class Geometry:
 
     def getPointInterLINE_POLYGON(self, LINE, POLYGON):
         a, b, c, d = self.getPlaneEqu(POLYGON)
-        result, t  = self.clacPointInterLINE_PLANE(LINE, a, b, c, d)
-        return result, t
+        point, ___ = self.clacPointInterLINE_PLANE(LINE, a, b, c, d)
+        return point
+
+    def getPointInterVECTOR_POLYGON(self, VECTOR, POLYGON):
+        a, b, c, d = self.getPlaneEqu(POLYGON)
+        point, mul = self.clacPointInterLINE_PLANE(VECTOR, a, b, c, d)
+        if not mul == None and mul <= 1 and mul >= 0:
+            return point
+        else:
+            return None
 
     def getVectorsInterPOLYGONS_PLANE(self, POLYGONS, PLANE):
         vectors = []
         for polygon in POLYGONS:
-            nIndex = len(polygon)-1
-            intersectVector = []
-            for index in range(len(polygon)):
-                vector = [polygon[index], polygon[nIndex]]
-                result, ratio = self.getPointInterLINE_POLYGON(vector, PLANE)
-                if ratio >= 0 and ratio <= 1 and not result in intersectVector:
-                    intersectVector.append(result)
-                nIndex = index
-            if len(intersectVector) > 1:
-                vectors.append(intersectVector)
+            intersectVectors = self.getIntersectingVectorsFromPlane(polygon, PLANE)
+            vectors = self.appendIntersectVectors(intersectVectors, vectors)
         return vectors
-
+    
+    def getIntersectingVectorsFromPlane(self, POLYGON, PLANE):
+        intersectVectors = []
+        secondaryVector  = POLYGON[-1]
+        for primaryVector in POLYGON:
+            vector = self.generate.vectorFromPoints(primaryVector, secondaryVector)
+            point  = self.getPointInterVECTOR_POLYGON(vector, PLANE)
+            
+            if not point == None and not point in intersectVectors:
+                intersectVectors.append(point)
+            secondaryVector = primaryVector
+        return intersectVectors
+    
+    def appendIntersectVectors(self, INTERSECT_VECTORS, VECTORS):
+        if len(INTERSECT_VECTORS) >= 2:
+            VECTORS.append(INTERSECT_VECTORS)
+        return VECTORS
+    
     def clacPointInterLINE_PLANE(self, LINE, A, B, C, D):
         sum = (D * (-1)) - ((A * LINE[0][0]) + (B * LINE[0][1]) + (C * LINE[0][2]))
         product = (A * (LINE[1][0] - LINE[0][0])) + (B * (LINE[1][1] - LINE[0][1])) + (C * (LINE[1][2] - LINE[0][2]))
@@ -107,7 +124,7 @@ class Geometry:
             Z = LINE[0][2] + (LINE[1][2] - LINE[0][2]) * sum / product
             return [X, Y, Z], sum / product
         else:
-            return -1, -1 # ERROR
+            return None, None
 
 
 class Generate:
@@ -133,10 +150,10 @@ class Generate:
         return polygon
 
     def hexagonVertices(self, X, Y, Z, C):
-        vertices = [[ 0.0 + X,  (C) + Y, Z],
+        vertices = [[ 0.0 + X, + (C) + Y, Z],
                     [ (3)**0.5 * (C) / 2 + X,  (C) / 2 + Y, Z],
                     [ (3)**0.5 * (C) / 2 + X, -(C) / 2 + Y, Z],
-                    [ 0.0 + X, -(C) + Y, Z],
+                    [ 0.0 + X, - (C) + Y, Z],
                     [-(3)**0.5 * (C) / 2 + X, -(C) / 2 + Y, Z],
                     [-(3)**0.5 * (C) / 2 + X,  (C) / 2 + Y, Z]]
         return vertices
@@ -146,13 +163,17 @@ class Generate:
         line   = [ROOT, vector]
         return line
 
+    def vectorFromPoints(self, A, B):
+        vector = [A, B]
+        return vector
+
 
 class Pathalgo:
     def __init__(self):
         self.general = General()
+        self.THRESHOLD = 10 ** (-4)
 
     def generatePathway(self, VECTORS):
-        MAXDISTANCE = 0.0001
         support = []
 
         while len(VECTORS) > 0:
@@ -165,7 +186,7 @@ class Pathalgo:
                 else:
                     index = 0
                     while index < len(VECTORS[points]):
-                        if self.general.getDistance(support[-1][-1], VECTORS[points][index]) < MAXDISTANCE:
+                        if self.general.getDistance(support[-1][-1], VECTORS[points][index]) < self.THRESHOLD:
                             VECTORS, support = self.updateRootInPath(VECTORS, support, points, index)
                             points = -1
                             break

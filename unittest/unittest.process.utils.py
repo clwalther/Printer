@@ -25,11 +25,13 @@ class UnittestProcessUtils:
             [[12.5, 12.5, 20.0], [12.5, 20.0, 20.0]],
             [[12.5, 12.5, 20.0], [12.5, 0.0, 20.0]],
             [[12.5, 7.5, 0.0],   [12.5, 0.0, 0.0]],
-            [[12.5, 7.5, 0.0],   [12.5, 20.0, 0.0]]
+            [[12.5, 7.5, 0.0],   [12.5, 20.0, 0.0]],
+
+            [[1, 1, 1], [2, 2, 2]]
         ]
         
         # when
-        result = utils.generatePathway(VECTORS)
+        result = utils.pathalgo.sort(VECTORS)
 
         # then
         if len(result) == 1:

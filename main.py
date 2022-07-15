@@ -63,7 +63,7 @@ class Printer:
 def main():
     printer = Printer()
 
-    FILE_PATH     = './objects/cube.obj'
+    FILE_PATH     = "./objects/elvis.obj"
     PRECISION     = 0.5
     INNER_DENSITY = 5.0
     OUTER_DENSITY = 2.0
@@ -75,5 +75,5 @@ def main():
         OUTER_DENSITY = OUTER_DENSITY
     )
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

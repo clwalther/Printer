@@ -145,8 +145,8 @@ class Outer_Support_Structure():
             polygon   = self.utils.generate.polygon(face, self.VERTICES)
             isBeneath = self.utils.geometry.pointInPolygon(polygon, point)
             if isBeneath:
-                line     = self.utils.generate.lineFromRoot(point, X=0, Y=0, Z=1)
-                inter, _ = self.utils.geometry.getPointInterLINE_POLYGON(line, polygon)
+                line  = self.utils.generate.lineFromRoot(point, X=0, Y=0, Z=1)
+                inter = self.utils.geometry.getPointInterLINE_POLYGON(line, polygon)
                 heights.append(inter)
         return sorted(heights, key = lambda x: x[2])
 

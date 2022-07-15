@@ -21,7 +21,7 @@ class Read:
         self.readData()
         self.trimData()
         self.formatFaces()
-        self.normalizeData()
+        self.normalizeVertices()
         print("READ SUCCESS", end=',  ')
 
     
@@ -37,7 +37,7 @@ class Read:
             self.formatData(trimedLine)
 
     def formatData(self, trimedLine):
-        lineKey    = trimedLine[0]
+        lineKey = trimedLine[0]
         self.appendData(lineKey, trimedLine[1:])
     
     def appendData(self, lineKey, trimedLine):
@@ -51,7 +51,7 @@ class Read:
     def formatFaces(self):
         self.FACES = [[int(verticeIndex - 1) for verticeIndex in faces] for faces in self.FACES]
 
-    def normalizeData(self):
+    def normalizeVertices(self):
         minPoint = self.utils.general.getMinPoint(self.VERTICES)
 
         for verticeIndex in range(len(self.VERTICES)):

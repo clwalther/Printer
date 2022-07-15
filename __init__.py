@@ -3,7 +3,8 @@ from process.read import Read
 from process.generate import Inner_Support_Structure, Outer_Support_Structure
 from process.slice import Slice
 
-# PRINTING [print]
+# PRINTING [printing]
+from printing.control import Control
 
-# DEVELOPING [plot]
+# DEVELOPING [ploting, timing]
 from dev import Plot, Timer
